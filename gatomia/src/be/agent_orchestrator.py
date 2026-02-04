@@ -20,7 +20,7 @@ from gatomia.src.be.prompt_template import (
     format_system_prompt,
     format_leaf_system_prompt,
 )
-from gatomia.src.be.utils import is_complex_module
+from gatomia.src.be.utils import is_complex_module, get_git_author, get_git_version
 from gatomia.src.config import (
     Config,
     MODULE_TREE_FILENAME,
@@ -57,7 +57,12 @@ class AgentOrchestrator:
                     str_replace_editor_tool,
                     generate_sub_module_documentation_tool,
                 ],
-                system_prompt=format_system_prompt(module_name, self.custom_instructions),
+                system_prompt=format_system_prompt(
+                    module_name=module_name,
+                    author_name=get_git_author(),
+                    version=get_git_version(),
+                    custom_instructions=self.custom_instructions,
+                ),
             )
         else:
             return Agent(
@@ -65,7 +70,12 @@ class AgentOrchestrator:
                 name=module_name,
                 deps_type=GatomIADeps,
                 tools=[read_code_components_tool, str_replace_editor_tool],
-                system_prompt=format_leaf_system_prompt(module_name, self.custom_instructions),
+                system_prompt=format_leaf_system_prompt(
+                    module_name=module_name,
+                    author_name=get_git_author(),
+                    version=get_git_version(),
+                    custom_instructions=self.custom_instructions,
+                ),
             )
 
     async def process_module(
@@ -75,6 +85,7 @@ class AgentOrchestrator:
         core_component_ids: List[str],
         module_path: List[str],
         working_dir: str,
+        progress_callback: Any = None,
     ) -> Dict[str, Any]:
         """Process a single module and generate its documentation."""
         logger.info(f"Processing module: {module_name}")
@@ -99,6 +110,7 @@ class AgentOrchestrator:
             current_depth=1,
             config=self.config,
             custom_instructions=self.custom_instructions,
+            progress_callback=progress_callback,
         )
 
         # check if overview docs already exists

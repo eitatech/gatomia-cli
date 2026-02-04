@@ -7,7 +7,6 @@ and provides CLI-specific functionality like progress reporting.
 
 from pathlib import Path
 from typing import Dict, Any
-import time
 import asyncio
 import os
 import logging
@@ -136,9 +135,14 @@ class CLIDocumentationGenerator:
             # Stage 4: HTML Generation (optional)
             if self.generate_html:
                 self._run_html_generation()
+            else:
+                self.progress_tracker.start_stage(4, "HTML Generation (Skipped)")
+                self.progress_tracker.complete_stage()
 
-            # Stage 5: Finalization (metadata already created by backend)
-            self._finalize_job()
+            # Stage 5: Finalization
+            self.progress_tracker.start_stage(5, "Finalization")
+            self._finalize_metadata()
+            self.progress_tracker.complete_stage("Done!")
 
             # Complete job
             self.job.complete()
@@ -151,6 +155,8 @@ class CLIDocumentationGenerator:
         except Exception as e:
             self.job.fail(str(e))
             raise
+        finally:
+            self.progress_tracker.stop()
 
     def analyze(self) -> DocumentationJob:
         """
@@ -181,6 +187,8 @@ class CLIDocumentationGenerator:
         except Exception as e:
             self.job.fail(str(e))
             raise
+        finally:
+            self.progress_tracker.stop()
 
     def _create_backend_config(self) -> BackendConfig:
         """Create backend configuration from CLI settings."""
@@ -334,16 +342,12 @@ class CLIDocumentationGenerator:
 
         self.progress_tracker.complete_stage()
 
-    def _finalize_job(self):
+    def _finalize_metadata(self):
         """Finalize the job (metadata already created by backend)."""
         # Just verify metadata exists
         metadata_path = self.output_dir / "metadata.json"
 
-        try:
-            if not metadata_path.exists():
-                # Create our own if backend didn't
-                with open(metadata_path, "w") as f:
-                    f.write(self.job.to_json())
-        finally:
-            if hasattr(self.progress_tracker, "stop"):
-                self.progress_tracker.stop()
+        if not metadata_path.exists():
+            # Create our own if backend didn't
+            with open(metadata_path, "w") as f:
+                f.write(self.job.to_json())

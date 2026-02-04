@@ -315,20 +315,6 @@ GatomIA employs a three-stage process for comprehensive documentation generation
 
 ---
 
-## Star History
-
-<p align="center">
-  <a href="https://star-history.com/#eitatech/gatomia-cli&Date">
-   <picture>
-     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=eitatech/gatomia-cli&type=Date&theme=dark" />
-     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=eitatech/gatomia-cli&type=Date" />
-     <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=eitatech/gatomia-cli&type=Date" />
-   </picture>
-  </a>
-</p>
-
----
-
 ## License
 
 This project is licensed under the MIT License.

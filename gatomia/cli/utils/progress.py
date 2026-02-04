@@ -11,6 +11,7 @@ from rich.progress import (
     BarColumn,
     TaskProgressColumn,
     TimeRemainingColumn,
+    TimeElapsedColumn,
 )
 from rich.console import Console
 
@@ -52,6 +53,7 @@ class RichProgressTracker:
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             TaskProgressColumn(),
+            TimeElapsedColumn(),
             TimeRemainingColumn(),
             console=self.console,
             transient=False,  # Keep the final state visible

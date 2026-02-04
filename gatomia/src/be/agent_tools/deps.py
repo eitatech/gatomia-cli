@@ -16,3 +16,4 @@ class GatomIADeps:
     current_depth: int
     config: Config  # LLM configuration
     custom_instructions: str = None
+    progress_callback: callable = None  # Optional callback for progress updates

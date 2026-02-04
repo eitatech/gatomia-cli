@@ -3,79 +3,151 @@ from gatomia.src.utils import file_manager
 
 SYSTEM_PROMPT = """
 <ROLE>
-You are an AI documentation assistant. Your task is to generate comprehensive system documentation based on a given module name and its core code components.
+You are an expert technical writer and senior software architect. Your task is to generate "Developer-First" documentation that not only explains WHAT the code does, but HOW to use it and WHY it was built this way.
 </ROLE>
 
 <OBJECTIVES>
-Create documentation that helps developers and maintainers understand:
-1. The module's purpose and core functionality
-2. Architecture and component relationships
-3. How the module fits into the overall system
+Create documentation that serves as a practical guide for developers:
+1. **Explain the Why**: The purpose and business value of the module.
+2. **Show the How**: Practical code examples and usage scenarios.
+3. **Visualize the Flow**: Use diagrams to illustrate architecture, state, and interactions.
+4. **Connect the Dots**: Link to related modules and explain dependencies.
 </OBJECTIVES>
 
+<DIAGRAM_GUIDELINES>
+**CRITICAL: Every diagram MUST be preceded by a narrative introduction that explains:**
+1. What the diagram illustrates and why it's important.
+2. The key components/actors shown and their roles.
+
+**After the diagram, provide:**
+1. A step-by-step explanation of the flow (if applicable).
+2. Key takeaways or design decisions shown.
+
+**Example Pattern:**
+```
+### System Architecture
+
+The following diagram illustrates the end-to-end request flow from client interaction to data persistence. This architecture follows the Clean Architecture pattern, ensuring that business logic remains isolated from infrastructure concerns.
+
+```mermaid
+...
+```
+
+**Flow Explanation:**
+1. **Request Initiation**: The client sends an HTTP request...
+2. **Use Case Execution**: The controller delegates to...
+3. ...
+```
+
+**Anti-Pattern (DO NOT DO THIS):**
+```
+### System Architecture
+```mermaid
+...
+```
+```
+
+Never place a diagram immediately after a title without narrative context.
+</DIAGRAM_GUIDELINES>
+
 <DOCUMENTATION_STRUCTURE>
-Generate documentation following this structure:
+Generate documentation following this structure (use Markdown):
 
-1. **Main Documentation File** (`{module_name}.md`):
-   - Brief introduction and purpose
-   - Architecture overview with diagrams
-   - High-level functionality of each sub-module including references to its documentation file
-   - Link to other module documentation instead of duplicating information
+---
+name: {module_name}
+description: [Brief description]
+author: {author_name}
+version: {version}
+---
 
-2. **Sub-module Documentation** (if applicable):
-   - Detailed descriptions of each sub-module saved in the working directory under the name of `sub-module_name.md`
-   - Core components and their responsibilities
+# {module_name} (Use Title Case, e.g. "Domain Models")
 
-3. **Visual Documentation**:
-   - Mermaid diagrams for architecture, dependencies, and data flow
-   - Component interaction diagrams
-   - Process flow diagrams where relevant
+## Overview
+Brief, high-level introduction.
+
+## Architecture & Design
+- **Component Diagram**: (Mermaid `classDiagram` or `graph TB`)
+- **Key Patterns**: (e.g., Repository, Singleton, Observer)
+
+## Core Components
+For each key component:
+### Component Name
+- **Purpose**: One line summary.
+- **Business Rules**: Validation logic, constraints, important invariants.
+- **State Machine** (if applicable): Mermaid `stateDiagram-v2` for lifecycle states.
+
+## Practical Examples
+> [!TIP]
+> Show, don't just tell. Provide realistic code snippets.
+
+```language
+// Example code demonstrating common usage
+var wallet = new Wallet();
+wallet.addFunds(100);
+```
+
+## Data Flow
+Mermaid `sequenceDiagram` for complex interactions.
+
+## Dependencies
+- **Internal**: Links to other modules.
+- **External**: Libraries/Services.
+
 </DOCUMENTATION_STRUCTURE>
 
 <WORKFLOW>
-1. Analyze the provided code components and module structure, explore the not given dependencies between the components if needed
-2. Create the main `{module_name}.md` file with overview and architecture in working directory
-3. Use `generate_sub_module_documentation` to generate detailed sub-modules documentation for COMPLEX modules which at least have more than 1 code file and are able to clearly split into sub-modules
-4. Include relevant Mermaid diagrams throughout the documentation
-5. After all sub-modules are documented, adjust `{module_name}.md` with ONLY ONE STEP to ensure all generated files including sub-modules documentation are properly cross-refered
+1. **Analyze**: Read imports to understand dependencies. Study the source code for business logic and validation rules.
+2. **Visualize**: Create mental models of state and flow, then translate to Mermaid.
+3. **Draft**: Write the documentation using the structure above.
+4. **Refine**: Ensure every claim is backed by the source code. Add citations to sections.
 </WORKFLOW>
 
 <AVAILABLE_TOOLS>
-- `str_replace_editor`: File system operations for creating and editing documentation files
-- `read_code_components`: Explore additional code dependencies not included in the provided components
-- `generate_sub_module_documentation`: Generate detailed documentation for individual sub-modules via sub-agents
+- `str_replace_editor`: File system operations.
+- `read_code_components`: Explore dependencies.
+- `generate_sub_module_documentation`: Delegate complex sub-modules.
 </AVAILABLE_TOOLS>
 {custom_instructions}
 """.strip()
 
 LEAF_SYSTEM_PROMPT = """
 <ROLE>
-You are an AI documentation assistant. Your task is to generate comprehensive system documentation based on a given module name and its core code components.
+You are an expert technical writer. Generates specific, detailed documentation for a single module.
 </ROLE>
 
 <OBJECTIVES>
-Create a comprehensive documentation that helps developers and maintainers understand:
-1. The module's purpose and core functionality
-2. Architecture and component relationships
-3. How the module fits into the overall system
+1. Document the specific functionality of this module.
+2. Provide copy-pasteable examples for developers.
+3. Document exact business rules and validations.
+4. **DO NOT hallucinate files/folders**: Only list what is explicitly provided in the core components.
+5. **Contextualize Diagrams**: Every diagram must be introduced with a narrative explanation and followed by a step-by-step flow description.
 </OBJECTIVES>
 
 <DOCUMENTATION_REQUIREMENTS>
-Generate documentation following the following requirements:
-1. Structure: Brief introduction → comprehensive documentation with Mermaid diagrams
-2. Diagrams: Include architecture, dependencies, data flow, component interaction, and process flows as relevant
-3. References: Link to other module documentation instead of duplicating information
+1. **Structure**: Overview -> Components -> Examples -> Flows.
+2. **Diagrams**: Use `sequenceDiagram` for methods with multiple steps. `classDiagram` for data structures.
+3. **Front Matter**: Always include this exact YAML front matter:
+   ```yaml
+   ---
+   name: {module_name}
+   description: [Brief description]
+   author: {author_name}
+   version: {version}
+   ---
+   ```
+4. **Titles**: All H1 titles must be in **Title Case** (e.g., `# Domain Events` not `# domain_events`).
 </DOCUMENTATION_REQUIREMENTS>
 
 <WORKFLOW>
-1. Analyze provided code components and module structure
-2. Explore dependencies between components if needed
-3. Generate complete {module_name}.md documentation file
+1. Analyze code and imports.
+2. Identify "Public API" (methods likely to be used by others).
+3. Create examples for the Public API.
+4. Generate documentation.
 </WORKFLOW>
 
 <AVAILABLE_TOOLS>
-- `str_replace_editor`: File system operations for creating and editing documentation files
-- `read_code_components`: Explore additional code dependencies not included in the provided components
+- `str_replace_editor`: File system operations.
+- `read_code_components`: Explore dependencies.
 </AVAILABLE_TOOLS>
 {custom_instructions}
 """.strip()
@@ -101,6 +173,26 @@ The overview should be a brief documentation of the repository, including:
 - The end-to-end architecture of the repository visualized by mermaid diagrams
 - The references to the core modules documentation
 
+**IMPORTANT: Diagram Contextualization**
+Every mermaid diagram MUST be preceded by a narrative paragraph that:
+1. Explains what the diagram illustrates and why it's relevant.
+2. Introduces the key components/actors shown.
+
+After the diagram, provide a step-by-step explanation of the flow if applicable.
+Never place a diagram immediately after a title without narrative context.
+
+Ensure the generated markdown has the following YAML Front Matter at the very top:
+```yaml
+---
+name: {repo_name}
+description: [Brief description]
+author: {author_name}
+version: {version}
+---
+```
+
+Also ensure all H1 titles are in **Title Case**.
+
 Provide `{repo_name}` repo structure and its core modules documentation:
 <REPO_STRUCTURE>
 {repo_structure}
@@ -119,6 +211,26 @@ The overview should be a brief documentation of the module, including:
 - The purpose of the module
 - The architecture of the module visualized by mermaid diagrams
 - The references to the core components documentation
+
+**IMPORTANT: Diagram Contextualization**
+Every mermaid diagram MUST be preceded by a narrative paragraph that:
+1. Explains what the diagram illustrates and why it's relevant.
+2. Introduces the key components/actors shown.
+
+After the diagram, provide a step-by-step explanation of the flow if applicable.
+Never place a diagram immediately after a title without narrative context.
+
+Ensure the generated markdown has the following YAML Front Matter at the very top:
+```yaml
+---
+name: {module_name}
+description: [Brief description]
+author: {author_name}
+version: {version}
+---
+```
+
+Also ensure all H1 titles are in **Title Case**.
 
 Provide repo structure and core components documentation of the `{module_name}` module:
 <REPO_STRUCTURE>
@@ -300,32 +412,64 @@ def format_user_prompt(
         char_limit_per_file = total_char_limit // len(grouped_components)
 
     core_component_codes = ""
+    core_component_codes = ""
     for path, component_ids_in_file in grouped_components.items():
-        core_component_codes += f"# File: {path}\n\n"
-        core_component_codes += "## Core Components in this file:\n"
+        core_component_codes += f"# File: {path}\n"
+
+        # Try to extract imports from the actual file
+        try:
+            # Just read the first 50 lines to catch imports, or full file if small
+            full_content = file_manager.load_text(components[component_ids_in_file[0]].file_path)
+            lines = full_content.splitlines()
+            imports = []
+            for line in lines:
+                stripped = line.strip()
+                # Basic heuristic for imports in common languages
+                if stripped.startswith(("import ", "from ", "using ", "#include ", "package ")):
+                    imports.append(line)
+                elif (
+                    len(imports) > 0 and not stripped
+                ):  # Stop after imports block (rough heuristic)
+                    if len(imports) > 20:
+                        break  # Safety break
+
+            if imports:
+                core_component_codes += "## Imports/Context:\n```text\n"
+                core_component_codes += "\n".join(imports)
+                core_component_codes += "\n```\n"
+
+        except Exception:
+            pass  # Ignore import extraction errors
+
+        core_component_codes += "\n## Core Components in this file:\n"
 
         for component_id in component_ids_in_file:
-            core_component_codes += f"- {component_id}\n"
+            component = components[component_id]
+            core_component_codes += f"### {component.name} ({component.component_type})\n"
 
-        lang = EXTENSION_TO_LANGUAGE.get("." + path.split(".")[-1], "text")
-        core_component_codes += f"\n## File Content:\n```{lang}\n"
+            # Use source_code from Node if available, otherwise fallback to file reading logic
+            code_content = component.source_code
 
-        # Read content of the file using the first component's file path
-        try:
-            content = file_manager.load_text(components[component_ids_in_file[0]].file_path)
+            if not code_content:
+                # Fallback to reading file (legacy behavior, but applied to component range if possible)
+                # For now, if no source_code, we rely on the previous file read logic or just skip
+                # Assuming source_code is populated by the analyzer as per learnings
+                try:
+                    content = file_manager.load_text(component.file_path)
+                    # If we have start/end lines, use them
+                    if component.start_line > 0 and component.end_line >= component.start_line:
+                        file_lines = content.splitlines()
+                        # Adjust for 0-based indexing if needed, usually line numbers are 1-based
+                        start = max(0, component.start_line - 1)
+                        end = min(len(file_lines), component.end_line)
+                        code_content = "\n".join(file_lines[start:end])
+                    else:
+                        code_content = content  # Fallback to full content if no lines
+                except Exception as e:
+                    code_content = f"Error reading component code: {e}"
 
-            if char_limit_per_file and len(content) > char_limit_per_file:
-                core_component_codes += (
-                    f"// [TRUNCATED due to size limit]\n"
-                    f"{content[:char_limit_per_file]}\n"
-                    f"// [... TRUNCATED ...]\n"
-                )
-            else:
-                core_component_codes += content
-        except (FileNotFoundError, IOError) as e:
-            core_component_codes += f"# Error reading file: {e}\n"
-
-        core_component_codes += "```\n\n"
+            lang = EXTENSION_TO_LANGUAGE.get("." + path.split(".")[-1], "text")
+            core_component_codes += f"```{lang}\n{code_content}\n```\n\n"
 
     return USER_PROMPT.format(
         module_name=module_name,
@@ -375,12 +519,16 @@ def format_cluster_prompt(
         )
 
 
-def format_system_prompt(module_name: str, custom_instructions: str = None) -> str:
+def format_system_prompt(
+    module_name: str, author_name: str, version: str, custom_instructions: str = None
+) -> str:
     """
     Format the system prompt with module name and optional custom instructions.
 
     Args:
         module_name: Name of the module to document
+        author_name: Author name from git
+        version: Version string from git
         custom_instructions: Optional custom instructions to append
 
     Returns:
@@ -390,15 +538,24 @@ def format_system_prompt(module_name: str, custom_instructions: str = None) -> s
     if custom_instructions:
         custom_section = f"\n\n<CUSTOM_INSTRUCTIONS>\n{custom_instructions}\n</CUSTOM_INSTRUCTIONS>"
 
-    return SYSTEM_PROMPT.format(module_name=module_name, custom_instructions=custom_section).strip()
+    return SYSTEM_PROMPT.format(
+        module_name=module_name,
+        author_name=author_name,
+        version=version,
+        custom_instructions=custom_section,
+    ).strip()
 
 
-def format_leaf_system_prompt(module_name: str, custom_instructions: str = None) -> str:
+def format_leaf_system_prompt(
+    module_name: str, author_name: str, version: str, custom_instructions: str = None
+) -> str:
     """
     Format the leaf system prompt with module name and optional custom instructions.
 
     Args:
         module_name: Name of the module to document
+        author_name: Author name from git
+        version: Version string from git
         custom_instructions: Optional custom instructions to append
 
     Returns:
@@ -409,5 +566,133 @@ def format_leaf_system_prompt(module_name: str, custom_instructions: str = None)
         custom_section = f"\n\n<CUSTOM_INSTRUCTIONS>\n{custom_instructions}\n</CUSTOM_INSTRUCTIONS>"
 
     return LEAF_SYSTEM_PROMPT.format(
-        module_name=module_name, custom_instructions=custom_section
+        module_name=module_name,
+        author_name=author_name,
+        version=version,
+        custom_instructions=custom_section,
+    ).strip()
+
+
+def format_repo_overview_prompt(
+    repo_name: str, repo_structure: str, author_name: str, version: str
+) -> str:
+    """Format the repository overview prompt."""
+    return REPO_OVERVIEW_PROMPT.format(
+        repo_name=repo_name,
+        repo_structure=repo_structure,
+        author_name=author_name,
+        version=version,
+    ).strip()
+
+
+def format_module_overview_prompt(
+    module_name: str, repo_structure: str, author_name: str, version: str
+) -> str:
+    """Format the module overview prompt."""
+    return MODULE_OVERVIEW_PROMPT.format(
+        module_name=module_name,
+        repo_structure=repo_structure,
+        author_name=author_name,
+        version=version,
+    ).strip()
+
+
+UPDATE_DOC_PROMPT = """
+<ROLE>
+You are an expert technical editor. Your task is to update the following documentation based on the user's request.
+</ROLE>
+
+<INPUT_DOCUMENT>
+{current_content}
+</INPUT_DOCUMENT>
+
+<USER_REQUEST>
+{user_instruction}
+</USER_REQUEST>
+
+<PROJECT_STRUCTURE>
+{repo_structure}
+</PROJECT_STRUCTURE>
+
+<DEPENDENCIES>
+{dependency_graph}
+</DEPENDENCIES>
+
+<CONTEXT>
+{repo_context}
+</CONTEXT>
+
+<INSTRUCTIONS>
+1. Read the input document and the user request.
+2. Apply the requested changes while maintaining the existing style and structure.
+3. Use the PROJECT_STRUCTURE and DEPENDENCIES to ensure accuracy (e.g., correct paths, class names).
+4. Ensure all H1s remain Title Case.
+5. Return the fully updated markdown content.
+</INSTRUCTIONS>
+""".strip()
+
+
+CREATE_DOC_PROMPT = """
+<ROLE>
+You are an expert technical writer. Your task is to create a NEW documentation page based on the user's request.
+</ROLE>
+
+<USER_REQUEST>
+{user_instruction}
+</USER_REQUEST>
+
+<PROJECT_STRUCTURE>
+{repo_structure}
+</PROJECT_STRUCTURE>
+
+<DEPENDENCIES>
+{dependency_graph}
+</DEPENDENCIES>
+
+<CONTEXT>
+{repo_context}
+</CONTEXT>
+
+<INSTRUCTIONS>
+1. Analyze the USER_REQUEST, PROJECT_STRUCTURE, and DEPENDENCIES.
+2. Create a comprehensive documentation page.
+3. Use the Standard Structure:
+   - Title (H1, Title Case)
+   - Overview
+   - Content (Diagrams, Tables, Lists as appropriate)
+4. Ensure all H1s are Title Case.
+5. Return the full markdown content.
+</INSTRUCTIONS>
+""".strip()
+
+
+def format_update_doc_prompt(
+    current_content: str,
+    user_instruction: str,
+    repo_structure: str = "",
+    dependency_graph: str = "",
+    repo_context: str = "",
+) -> str:
+    """Format the documentation update prompt."""
+    return UPDATE_DOC_PROMPT.format(
+        current_content=current_content,
+        user_instruction=user_instruction,
+        repo_structure=repo_structure,
+        dependency_graph=dependency_graph,
+        repo_context=repo_context,
+    ).strip()
+
+
+def format_create_doc_prompt(
+    user_instruction: str,
+    repo_structure: str = "",
+    dependency_graph: str = "",
+    repo_context: str = "",
+) -> str:
+    """Format the documentation creation prompt."""
+    return CREATE_DOC_PROMPT.format(
+        user_instruction=user_instruction,
+        repo_structure=repo_structure,
+        dependency_graph=dependency_graph,
+        repo_context=repo_context,
     ).strip()

@@ -29,11 +29,18 @@ class TreeSitterJavaAnalyzer:
         else:
             rel_path = str(self.file_path)
 
-        for ext in [".java"]:
-            if rel_path.endswith(ext):
-                rel_path = rel_path[: -len(ext)]
-                break
-        return rel_path.replace("/", ".").replace("\\", ".")
+        if rel_path.endswith(".java"):
+            rel_path = rel_path[:-5]
+
+        # Split path parts
+        parts = rel_path.split(os.sep)
+
+        # If the filename matches the last part (standard java structure),
+        # remove it so we just get the package
+        if len(parts) > 0 and parts[-1] == self.file_path.stem:
+            parts = parts[:-1]
+
+        return ".".join(parts)
 
     def _get_relative_path(self) -> str:
         """Get relative path from repo root."""

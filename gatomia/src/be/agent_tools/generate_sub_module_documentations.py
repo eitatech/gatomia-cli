@@ -4,8 +4,15 @@ from gatomia.src.be.agent_tools.deps import GatomIADeps
 from gatomia.src.be.agent_tools.read_code_components import read_code_components_tool
 from gatomia.src.be.agent_tools.str_replace_editor import str_replace_editor_tool
 from gatomia.src.be.llm_services import create_fallback_models
-from gatomia.src.be.prompt_template import SYSTEM_PROMPT, LEAF_SYSTEM_PROMPT, format_user_prompt
-from gatomia.src.be.utils import is_complex_module, count_tokens
+from gatomia.src.be.state_manager import StateManager
+from gatomia.src.be.hashing import calculate_module_hash
+import os
+from gatomia.src.be.prompt_template import (
+    format_system_prompt,
+    format_leaf_system_prompt,
+    format_user_prompt,
+)
+from gatomia.src.be.utils import is_complex_module, count_tokens, get_git_author, get_git_version
 from gatomia.src.be.cluster_modules import format_potential_core_components
 
 import logging
@@ -35,12 +42,34 @@ async def generate_sub_module_documentation(
     for sub_module_name, core_component_ids in sub_module_specs.items():
         value[sub_module_name] = {"components": core_component_ids, "children": {}}
 
+    # Retrieve git metadata once
+    author_name = get_git_author()
+    version = get_git_version()
+
     for sub_module_name, core_component_ids in sub_module_specs.items():
         # Create visual indentation for nested modules
         indent = "  " * deps.current_depth
         arrow = "└─" if deps.current_depth > 0 else "→"
 
-        logger.info(f"{indent}{arrow} Generating documentation for sub-module: {sub_module_name}")
+        test_msg = f"{indent}{arrow} Generating documentation for sub-module: {sub_module_name}"
+        logger.info(test_msg)
+        if deps.progress_callback:
+            deps.progress_callback(f"Generating sub-module: {sub_module_name}")
+
+        # --- CACHING LOGIC ---
+        state_manager = StateManager(deps.absolute_docs_path)
+        full_sub_module_path = "/".join(deps.path_to_current_module + [sub_module_name])
+        current_hash = calculate_module_hash(core_component_ids, ctx.deps.components)
+
+        md_path = os.path.join(deps.absolute_docs_path, f"{sub_module_name}.md")
+        if state_manager.is_module_up_to_date(
+            full_sub_module_path, current_hash
+        ) and os.path.exists(md_path):
+            logger.info(f"{indent}  ⏭️  Skipping up-to-date sub-module: {sub_module_name}")
+            if deps.progress_callback:
+                deps.progress_callback(f"Skipping cached sub-module: {sub_module_name}")
+            continue
+        # ---------------------
 
         num_tokens = count_tokens(
             format_potential_core_components(core_component_ids, ctx.deps.components)[-1]
@@ -55,8 +84,11 @@ async def generate_sub_module_documentation(
                 model=fallback_models,
                 name=sub_module_name,
                 deps_type=GatomIADeps,
-                system_prompt=SYSTEM_PROMPT.format(
-                    module_name=sub_module_name, custom_instructions=ctx.deps.custom_instructions
+                system_prompt=format_system_prompt(
+                    module_name=sub_module_name,
+                    author_name=author_name,
+                    version=version,
+                    custom_instructions=ctx.deps.custom_instructions,
                 ),
                 tools=[
                     read_code_components_tool,
@@ -69,8 +101,11 @@ async def generate_sub_module_documentation(
                 model=fallback_models,
                 name=sub_module_name,
                 deps_type=GatomIADeps,
-                system_prompt=LEAF_SYSTEM_PROMPT.format(
-                    module_name=sub_module_name, custom_instructions=ctx.deps.custom_instructions
+                system_prompt=format_leaf_system_prompt(
+                    module_name=sub_module_name,
+                    author_name=author_name,
+                    version=version,
+                    custom_instructions=ctx.deps.custom_instructions,
                 ),
                 tools=[read_code_components_tool, str_replace_editor_tool],
             )
@@ -91,6 +126,9 @@ async def generate_sub_module_documentation(
             deps=ctx.deps,
             model_settings=ModelSettings(max_tokens=ctx.deps.config.max_tokens),
         )
+
+        # Update cache after successful generation
+        state_manager.update_module_state(full_sub_module_path, current_hash)
 
         # remove the sub-module name from the path to current module and the module tree
         deps.path_to_current_module.pop()

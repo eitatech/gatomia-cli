@@ -6,6 +6,7 @@ import tiktoken
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 import os
+import git
 
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,39 @@ async def validate_single_diagram(diagram_content: str, diagram_num: int, line_s
             return f"Diagram {diagram_num}: {core_error}"
 
     return ""  # No error
+
+
+# ------------------------------------------------------------
+# ---------------------- Git Utilities -----------------------
+# ------------------------------------------------------------
+
+
+def get_git_author(repo_path: str = ".") -> str:
+    """
+    Get the configured git author name.
+    """
+    try:
+        repo = git.Repo(repo_path, search_parent_directories=True)
+        reader = repo.config_reader()
+        return reader.get_value("user", "name", default="AI Generator")
+    except Exception as e:
+        logger.warning(f"Failed to get git author: {e}")
+        return "AI Generator"
+
+
+def get_git_version(repo_path: str = ".") -> str:
+    """
+    Get the current git version (tag or commit hash).
+    """
+    try:
+        repo = git.Repo(repo_path, search_parent_directories=True)
+        try:
+            return repo.git.describe("--tags", "--always")
+        except git.GitCommandError:
+            return repo.head.commit.hexsha[:7]
+    except Exception as e:
+        logger.warning(f"Failed to get git version: {e}")
+        return "1.0"
 
 
 if __name__ == "__main__":

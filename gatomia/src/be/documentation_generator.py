@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 from gatomia.src.be.dependency_analyzer import DependencyGraphBuilder
 from gatomia.src.be.llm_services import call_llm
 from gatomia.src.be.prompt_template import (
-    REPO_OVERVIEW_PROMPT,
-    MODULE_OVERVIEW_PROMPT,
+    format_repo_overview_prompt,
+    format_module_overview_prompt,
 )
 from gatomia.src.be.cluster_modules import cluster_modules
 from gatomia.src.config import (
@@ -26,6 +26,8 @@ from gatomia.src.utils import file_manager
 from gatomia.src.be.agent_orchestrator import AgentOrchestrator
 from gatomia.src.be.state_manager import StateManager
 from gatomia.src.be.hashing import calculate_module_hash
+from gatomia.src.be.utils import get_git_author, get_git_version
+import shutil
 
 
 class DocumentationGenerator:
@@ -101,6 +103,56 @@ class DocumentationGenerator:
         children = module_info.get("children", {})
         return not children or (isinstance(children, dict) and len(children) == 0)
 
+    def _extract_module_summary(self, markdown_content: str) -> str:
+        """
+        Extract the module summary (Overview + Architecture) from the markdown content.
+        Strategy: Extract content until we hit details sections like 'Core Components' or 'Sub-modules'.
+        """
+        try:
+            lines = markdown_content.splitlines()
+            summary_lines = []
+
+            # Headers that signal the start of detailed content we want to skip for parent summary
+            stop_headers = [
+                "## core components",
+                "## sub-modules",
+                "## sub modules",
+                "## detailed design",
+                "## implementation",
+                "## classes",
+                "## functions",
+                "## api",
+            ]
+
+            for line in lines:
+                stripped = line.strip().lower()
+
+                # Check if we hit a stop header
+                if any(stripped.startswith(header) for header in stop_headers):
+                    break
+
+                # Check for "Files:" or "Referenced Files" lists which are often huge
+                if stripped.startswith("**referenced files:**") or stripped.startswith("<cite>"):
+                    continue  # Skip citation block in summary if it's too early, actually we might want to keep it?
+                    # Prompt template puts it at top. Let's keep it for now but maybe later.
+                    pass
+
+                summary_lines.append(line)
+
+                # Safety valve: if summary exceeds ~80 lines (approx 1-2 pages), stop to avoid token explosion
+                if len(summary_lines) > 80:
+                    summary_lines.append("\n... [Truncated for Parent Summary] ...")
+                    break
+
+            # If logic failed to grab ample content (e.g. empty), fallback to first 50 lines
+            if len(summary_lines) < 3:
+                return "\n".join(lines[:50])
+
+            return "\n".join(summary_lines)
+
+        except Exception:
+            return markdown_content[:2000]  # Fallback to crude truncation
+
     def build_overview_structure(
         self, module_tree: Dict[str, Any], module_path: List[str], working_dir: str
     ) -> Dict[str, Any]:
@@ -119,14 +171,13 @@ class DocumentationGenerator:
             module_info = module_info["children"]
 
         for child_name, child_info in module_info.items():
-            if os.path.exists(os.path.join(working_dir, f"{child_name}.md")):
-                child_info["docs"] = file_manager.load_text(
-                    os.path.join(working_dir, f"{child_name}.md")
-                )
+            child_path = os.path.join(working_dir, f"{child_name}.md")
+            if os.path.exists(child_path):
+                # Optimization: Extract only the summary instead of full content
+                full_content = file_manager.load_text(child_path)
+                child_info["docs"] = self._extract_module_summary(full_content)
             else:
-                logger.warning(
-                    f"Module docs not found at {os.path.join(working_dir, f'{child_name}.md')}"
-                )
+                logger.warning(f"Module docs not found at {child_path}")
                 child_info["docs"] = ""
 
         return processed_module_tree
@@ -192,6 +243,13 @@ class DocumentationGenerator:
                     if progress_callback:
                         progress_callback(current_count, total_modules, module_name, False)
 
+                    # Define progress wrapper for sub-modules
+                    progress_wrapper = None
+                    if progress_callback:
+                        progress_wrapper = lambda msg: progress_callback(
+                            current_count, total_modules, f"{module_name} › {msg}", False
+                        )
+
                     # Process the module
                     if self.is_leaf_module(module_info):
                         logger.info(f"📄 Processing leaf module: {module_key}")
@@ -201,6 +259,7 @@ class DocumentationGenerator:
                             module_info["components"],
                             module_path,
                             working_dir,
+                            progress_callback=progress_wrapper,
                         )
                     else:
                         logger.info(f"📁 Processing parent module: {module_key}")
@@ -223,8 +282,20 @@ class DocumentationGenerator:
         else:
             logger.info(f"Processing whole repo because repo can fit in the context window")
             repo_name = os.path.basename(os.path.normpath(self.config.repo_path))
+
+            progress_wrapper = None
+            if progress_callback:
+                progress_wrapper = lambda msg: progress_callback(
+                    1, 1, f"{repo_name} › {msg}", False
+                )
+
             final_module_tree = await self.agent_orchestrator.process_module(
-                repo_name, components, leaf_nodes, [], working_dir
+                repo_name,
+                components,
+                leaf_nodes,
+                [],
+                working_dir,
+                progress_callback=progress_wrapper,
             )
             # For whole repo processing, we can treat it as the root module
             root_hash = calculate_module_hash(leaf_nodes, components)
@@ -239,6 +310,13 @@ class DocumentationGenerator:
             repo_overview_path = os.path.join(working_dir, f"{repo_name}.md")
             if os.path.exists(repo_overview_path):
                 os.rename(repo_overview_path, os.path.join(working_dir, OVERVIEW_FILENAME))
+
+            # Copy overview.md to README.md
+            overview_path = os.path.join(working_dir, OVERVIEW_FILENAME)
+            readme_path = os.path.join(working_dir, "README.md")
+            if os.path.exists(overview_path):
+                shutil.copy(overview_path, readme_path)
+                logger.info(f"Generated README.md from {OVERVIEW_FILENAME}")
 
         return working_dir
 
@@ -276,22 +354,38 @@ class DocumentationGenerator:
         # Create repo structure with 1-depth children docs and target indicator
         repo_structure = self.build_overview_structure(module_tree, module_path, working_dir)
 
-        prompt = (
-            MODULE_OVERVIEW_PROMPT.format(
-                module_name=module_name, repo_structure=json.dumps(repo_structure, indent=4)
+        # Metadata
+        author_name = get_git_author()
+        version = get_git_version()
+
+        if len(module_path) >= 1:
+            prompt = format_module_overview_prompt(
+                module_name=module_name,
+                repo_structure=json.dumps(repo_structure, indent=4),
+                author_name=author_name,
+                version=version,
             )
-            if len(module_path) >= 1
-            else REPO_OVERVIEW_PROMPT.format(
-                repo_name=module_name, repo_structure=json.dumps(repo_structure, indent=4)
+        else:
+            prompt = format_repo_overview_prompt(
+                repo_name=module_name,
+                repo_structure=json.dumps(repo_structure, indent=4),
+                author_name=author_name,
+                version=version,
             )
-        )
 
         try:
             parent_docs = await call_llm(prompt, self.config)
 
             # Parse and save parent documentation
-            parent_content = parent_docs.split("<OVERVIEW>")[1].split("</OVERVIEW>")[0].strip()
-            # parent_content = prompt
+            # Parse and save parent documentation
+            if "<OVERVIEW>" in parent_docs and "</OVERVIEW>" in parent_docs:
+                parent_content = parent_docs.split("<OVERVIEW>")[1].split("</OVERVIEW>")[0].strip()
+            else:
+                logger.warning(
+                    f"Using full response for parent docs of {module_name} (missing tags)"
+                )
+                parent_content = parent_docs.strip()
+
             file_manager.save_text(parent_content, parent_docs_path)
 
             logger.debug(f"Successfully generated parent documentation for: {module_name}")
