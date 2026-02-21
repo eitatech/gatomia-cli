@@ -34,12 +34,14 @@ from gatomia.cli.commands.config import config_group
 from gatomia.cli.commands.generate import generate_command
 from gatomia.cli.commands.analyze import analyze_command
 from gatomia.cli.commands.update import update_command
+from gatomia.cli.commands.publish import publish_command
 
 # Register command groups
 cli.add_command(config_group)
 cli.add_command(generate_command, name="generate")
 cli.add_command(analyze_command, name="analyze")
 cli.add_command(update_command, name="update")
+cli.add_command(publish_command, name="publish")
 
 
 def main():
