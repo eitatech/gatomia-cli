@@ -39,7 +39,6 @@ htmlcov/
 .tox/
 .hypothesis/
 tests/
-gatomia-rs/
 
 # Jupyter
 *.ipynb
