@@ -1,0 +1,20 @@
+{
+    "repo_path": ".",
+    "output_dir": "output/temp",
+    "dependency_graph_dir": "output/temp/dependency_graphs",
+    "docs_dir": "output/docs",
+    "max_depth": 2,
+    "llm_provider": "copilot",
+    "main_model": "gpt-5.3-codex",
+    "cluster_model": "gpt-5.3-codex",
+    "fallback_model": "claude-opus-4.6",
+    "llm_base_url": "https://api.openai.com/v1",
+    "llm_api_key": "YOUR_LLM_API_KEY",
+    "copilot_token": "YOUR_GITHUB_COPILOT_TOKEN",
+    "google_api_key": "YOUR_GOOGLE_API_KEY",
+    "max_tokens": 32768,
+    "max_token_per_module": 36369,
+    "max_token_per_leaf_module": 16000,
+    "include_reasoning": false,
+    "agent_instructions": {}
+}
